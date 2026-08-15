@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: pilaslot-postgres
+    environment:
+      POSTGRES_DB: ${PILASLOT_DB_NAME:-pilaslot_local}
+      POSTGRES_USER: ${PILASLOT_DB_USERNAME:-pilaslot}
+      POSTGRES_PASSWORD: ${PILASLOT_DB_PASSWORD:-pilaslot_local_password}
+    ports:
+      - "${PILASLOT_DB_PORT:-5433}:5432"
+    volumes:
+      - pilaslot-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pilaslot-postgres-data:

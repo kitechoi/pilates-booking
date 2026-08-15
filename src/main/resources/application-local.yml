@@ -1,0 +1,15 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  datasource:
+    url: ${PILASLOT_DB_URL:jdbc:postgresql://localhost:5433/pilaslot_local}
+    username: ${PILASLOT_DB_USERNAME:pilaslot}
+    password: ${PILASLOT_DB_PASSWORD:pilaslot_local_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
