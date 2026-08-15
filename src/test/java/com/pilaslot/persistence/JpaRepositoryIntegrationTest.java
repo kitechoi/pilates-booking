@@ -18,9 +18,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,17 +51,18 @@ class JpaRepositoryIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     void savesAndLoadsAllEntities() {
         TestFixture fixture = persistFixture("happy-path");
         LocalDateTime reservedAt = CLASS_START_AT.minusDays(1);
 
-        Reservation saved = reservationRepository.saveAndFlush(new Reservation(
+        Reservation saved = reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
-                ReservationStatus.RESERVED,
-                reservedAt,
-                null
+                reservedAt
         ));
 
         entityManager.clear();
@@ -81,20 +84,16 @@ class JpaRepositoryIntegrationTest {
         TestFixture fixture = persistFixture("duplicate");
         LocalDateTime reservedAt = CLASS_START_AT.minusDays(1);
 
-        reservationRepository.saveAndFlush(new Reservation(
+        reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
-                ReservationStatus.RESERVED,
-                reservedAt,
-                null
+                reservedAt
         ));
 
-        assertThatThrownBy(() -> reservationRepository.saveAndFlush(new Reservation(
+        assertThatThrownBy(() -> reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
-                ReservationStatus.RESERVED,
-                reservedAt.plusMinutes(1),
-                null
+                reservedAt.plusMinutes(1)
         ))).isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -102,24 +101,31 @@ class JpaRepositoryIntegrationTest {
     void allowsNewActiveReservationAfterCancelledHistory() {
         TestFixture fixture = persistFixture("rebook");
         LocalDateTime firstReservedAt = CLASS_START_AT.minusDays(2);
+        LocalDateTime cancelledAt = firstReservedAt.plusHours(1);
 
-        Reservation cancelledHistory = reservationRepository.saveAndFlush(new Reservation(
+        Reservation cancelledHistory = reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
-                ReservationStatus.CANCELLED,
-                firstReservedAt,
-                firstReservedAt.plusHours(1)
+                firstReservedAt
         ));
+        jdbcTemplate.update(
+                "UPDATE reservation SET status = ?, cancelled_at = ? WHERE id = ?",
+                ReservationStatus.CANCELLED.name(),
+                Timestamp.valueOf(cancelledAt),
+                cancelledHistory.getId()
+        );
+        entityManager.clear();
 
-        Reservation newActiveReservation = reservationRepository.saveAndFlush(new Reservation(
+        Reservation newActiveReservation = reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
-                ReservationStatus.RESERVED,
-                CLASS_START_AT.minusDays(1),
-                null
+                CLASS_START_AT.minusDays(1)
         ));
 
         assertThat(cancelledHistory.getId()).isNotEqualTo(newActiveReservation.getId());
+        Reservation foundCancelledHistory = reservationRepository.findById(cancelledHistory.getId()).orElseThrow();
+        assertThat(foundCancelledHistory.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(foundCancelledHistory.getCancelledAt()).isEqualTo(cancelledAt);
         assertThat(reservationRepository.findAll()).hasSize(2);
     }
 

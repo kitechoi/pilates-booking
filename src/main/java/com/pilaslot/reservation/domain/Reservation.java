@@ -48,7 +48,7 @@ public class Reservation extends BaseTimeEntity {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
-    public Reservation(
+    private Reservation(
             Member member,
             ClassSession classSession,
             ReservationStatus status,
@@ -60,5 +60,19 @@ public class Reservation extends BaseTimeEntity {
         this.status = status;
         this.reservedAt = reservedAt;
         this.cancelledAt = cancelledAt;
+    }
+
+    public static Reservation reserve(
+            Member member,
+            ClassSession classSession,
+            LocalDateTime reservedAt
+    ) {
+        return new Reservation(
+                member,
+                classSession,
+                ReservationStatus.RESERVED,
+                reservedAt,
+                null
+        );
     }
 }
