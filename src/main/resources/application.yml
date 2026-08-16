@@ -1,3 +1,6 @@
 spring:
   application:
     name: PilaSlot
+
+app:
+  timezone: Asia/Seoul
