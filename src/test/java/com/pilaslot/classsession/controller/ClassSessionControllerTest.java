@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,7 +26,9 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -133,5 +136,28 @@ class ClassSessionControllerTest {
                 .andExpect(jsonPath("$.path").value("/api/v1/class-sessions"))
                 .andExpect(jsonPath("$.errors").isEmpty())
                 .andExpect(content().string(not(containsString("sensitive internal detail"))));
+    }
+
+    @Test
+    void returnsNotFoundForUnknownEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/class-sessions/unknown"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/class-sessions/unknown"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    @WithMockUser
+    void returnsMethodNotAllowedForUnsupportedMethod() throws Exception {
+        mockMvc.perform(post("/api/v1/class-sessions").with(csrf()))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("지원하지 않는 HTTP 메서드입니다."))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/class-sessions"))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 }

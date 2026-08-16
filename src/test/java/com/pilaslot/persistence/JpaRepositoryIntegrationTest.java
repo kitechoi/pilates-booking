@@ -13,20 +13,27 @@ import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.repository.ReservationRepository;
 import com.pilaslot.support.PostgreSqlTestContainerConfiguration;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 
 @Transactional
 @ActiveProfiles("test")
@@ -35,6 +42,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class JpaRepositoryIntegrationTest {
 
     private static final LocalDateTime CLASS_START_AT = LocalDateTime.of(2026, 8, 22, 13, 0);
+    private static final Instant CREATED_INSTANT = Instant.parse("2026-08-16T00:00:00Z");
+    private static final Instant UPDATED_INSTANT = Instant.parse("2026-08-16T01:00:00Z");
+
+    @MockitoBean
+    private Clock clock;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -53,6 +65,12 @@ class JpaRepositoryIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setUpClock() {
+        given(clock.instant()).willReturn(CREATED_INSTANT);
+        given(clock.getZone()).willReturn(ZoneOffset.UTC);
+    }
 
     @Test
     void savesAndLoadsAllEntities() {
@@ -77,6 +95,26 @@ class JpaRepositoryIntegrationTest {
         assertThat(found.getClassSession().getReservedCount()).isZero();
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(found.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
+    void createsAndUpdatesAuditingTimestampsUsingClock() {
+        Instructor instructor = instructorRepository.saveAndFlush(new Instructor(
+                "Auditing Instructor",
+                null
+        ));
+        LocalDateTime createdAt = LocalDateTime.ofInstant(CREATED_INSTANT, ZoneOffset.UTC);
+
+        assertThat(instructor.getCreatedAt()).isEqualTo(createdAt);
+        assertThat(instructor.getUpdatedAt()).isEqualTo(createdAt);
+
+        given(clock.instant()).willReturn(UPDATED_INSTANT);
+        ReflectionTestUtils.setField(instructor, "profileImageUrl", "updated-profile.png");
+        instructorRepository.saveAndFlush(instructor);
+
+        assertThat(instructor.getCreatedAt()).isEqualTo(createdAt);
+        assertThat(instructor.getUpdatedAt())
+                .isEqualTo(LocalDateTime.ofInstant(UPDATED_INSTANT, ZoneOffset.UTC));
     }
 
     @Test
