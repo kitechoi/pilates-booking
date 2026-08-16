@@ -140,12 +140,12 @@ class ClassSessionControllerTest {
 
     @Test
     void returnsNotFoundForUnknownEndpoint() throws Exception {
-        mockMvc.perform(get("/api/v1/class-sessions/unknown"))
+        mockMvc.perform(get("/api/v1/class-sessions/1/unknown"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."))
                 .andExpect(jsonPath("$.timestamp").exists())
-                .andExpect(jsonPath("$.path").value("/api/v1/class-sessions/unknown"))
+                .andExpect(jsonPath("$.path").value("/api/v1/class-sessions/1/unknown"))
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
 
