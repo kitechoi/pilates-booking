@@ -10,6 +10,9 @@ import com.pilaslot.global.config.TimeConfig;
 import com.pilaslot.global.exception.BusinessException;
 import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.global.exception.GlobalExceptionHandler;
+import com.pilaslot.global.security.CustomAuthenticationEntryPoint;
+import com.pilaslot.global.security.JwtAuthenticationFilter;
+import com.pilaslot.global.security.JwtTokenProvider;
 import com.pilaslot.global.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +20,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -34,7 +38,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ClassSessionController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfig.class, TimeConfig.class})
+@ActiveProfiles("test")
+@Import({
+        GlobalExceptionHandler.class,
+        SecurityConfig.class,
+        JwtAuthenticationFilter.class,
+        CustomAuthenticationEntryPoint.class,
+        TimeConfig.class
+})
 class ClassSessionControllerTest {
 
     @Autowired
@@ -42,6 +53,9 @@ class ClassSessionControllerTest {
 
     @MockitoBean
     private ClassSessionQueryService classSessionQueryService;
+
+    @MockitoBean
+    private JwtTokenProvider jwtTokenProvider;
 
     @Test
     void returnsWeeklyClassSessions() throws Exception {
