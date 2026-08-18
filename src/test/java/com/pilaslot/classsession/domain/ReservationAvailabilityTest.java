@@ -8,8 +8,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ReservationAvailabilityTest {
 
+    private static final long RESERVATION_DEADLINE_HOURS = 2;
     private static final LocalDateTime START_AT = LocalDateTime.of(2026, 8, 20, 14, 0);
     private static final LocalDateTime RESERVATION_OPEN_AT = LocalDateTime.of(2026, 8, 13, 9, 0);
+    private static final LocalDateTime RESERVATION_DEADLINE =
+            START_AT.minusHours(RESERVATION_DEADLINE_HOURS);
 
     @Test
     void returnsBeforeOpenBeforeReservationOpenAt() {
@@ -41,21 +44,21 @@ class ReservationAvailabilityTest {
 
     @Test
     void returnsAvailableAtReservationDeadline() {
-        ReservationAvailability result = calculate(START_AT.minusHours(2), 0, 4);
+        ReservationAvailability result = calculate(RESERVATION_DEADLINE, 0, 4);
 
         assertThat(result).isEqualTo(ReservationAvailability.AVAILABLE);
     }
 
     @Test
     void returnsClosedAfterReservationDeadline() {
-        ReservationAvailability result = calculate(START_AT.minusHours(2).plusNanos(1), 0, 4);
+        ReservationAvailability result = calculate(RESERVATION_DEADLINE.plusNanos(1), 0, 4);
 
         assertThat(result).isEqualTo(ReservationAvailability.CLOSED);
     }
 
     @Test
     void closedTakesPriorityOverFull() {
-        ReservationAvailability result = calculate(START_AT.minusHours(2).plusNanos(1), 4, 4);
+        ReservationAvailability result = calculate(RESERVATION_DEADLINE.plusNanos(1), 4, 4);
 
         assertThat(result).isEqualTo(ReservationAvailability.CLOSED);
     }
