@@ -2,14 +2,16 @@ package com.pilaslot.classsession.domain;
 
 import java.time.LocalDateTime;
 
-public enum ReservationState {
+public enum ReservationAvailability {
     BEFORE_OPEN,
-    OPEN,
+    AVAILABLE,
     FULL,
     CLOSED,
     CANCELLED;
 
-    public static ReservationState calculate(
+    private static final long RESERVATION_DEADLINE_HOURS = 2;
+
+    public static ReservationAvailability calculate(
             ClassSessionStatus status,
             LocalDateTime reservationOpenAt,
             LocalDateTime startAt,
@@ -23,12 +25,12 @@ public enum ReservationState {
         if (now.isBefore(reservationOpenAt)) {
             return BEFORE_OPEN;
         }
-        if (now.isAfter(startAt.minusHours(2))) {
+        if (now.isAfter(startAt.minusHours(RESERVATION_DEADLINE_HOURS))) {
             return CLOSED;
         }
         if (reservedCount >= capacity) {
             return FULL;
         }
-        return OPEN;
+        return AVAILABLE;
     }
 }

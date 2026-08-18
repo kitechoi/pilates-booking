@@ -3,7 +3,7 @@ package com.pilaslot.classsession.dto.response;
 import com.pilaslot.classsession.domain.ClassSession;
 import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
-import com.pilaslot.classsession.domain.ReservationState;
+import com.pilaslot.classsession.domain.ReservationAvailability;
 import com.pilaslot.instructor.domain.Instructor;
 
 import java.time.LocalDateTime;
@@ -20,7 +20,7 @@ public record ClassSessionResponse(
         Integer reservedCount,
         Integer remainingCount,
         ClassSessionStatus status,
-        ReservationState reservationState
+        ReservationAvailability reservationAvailability
 ) {
 
     public static ClassSessionResponse from(ClassSession classSession, LocalDateTime now) {
@@ -36,7 +36,7 @@ public record ClassSessionResponse(
                 classSession.getReservedCount(),
                 classSession.getCapacity() - classSession.getReservedCount(),
                 classSession.getStatus(),
-                ReservationState.calculate(
+                ReservationAvailability.calculate(
                         classSession.getStatus(),
                         classSession.getReservationOpenAt(),
                         classSession.getStartAt(),

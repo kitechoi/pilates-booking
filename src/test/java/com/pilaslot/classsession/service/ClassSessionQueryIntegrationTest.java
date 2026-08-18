@@ -3,7 +3,7 @@ package com.pilaslot.classsession.service;
 import com.pilaslot.classsession.domain.ClassSession;
 import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
-import com.pilaslot.classsession.domain.ReservationState;
+import com.pilaslot.classsession.domain.ReservationAvailability;
 import com.pilaslot.classsession.dto.response.ClassSessionResponse;
 import com.pilaslot.classsession.dto.response.WeeklyClassSessionResponse;
 import com.pilaslot.classsession.repository.ClassSessionRepository;
@@ -40,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ClassSessionQueryIntegrationTest {
 
     private static final LocalDate WEEK_START = LocalDate.of(2026, 8, 17);
+    private static final LocalDateTime RESERVATION_OPEN_AT =
+            LocalDateTime.of(2026, 8, 10, 9, 0);
 
     @Autowired
     private InstructorRepository instructorRepository;
@@ -93,7 +95,41 @@ class ClassSessionQueryIntegrationTest {
         assertThat(first.endAt()).isEqualTo(first.startAt().plusMinutes(50));
         assertThat(first.reservedCount()).isEqualTo(1);
         assertThat(first.remainingCount()).isEqualTo(3);
-        assertThat(first.reservationState()).isEqualTo(ReservationState.OPEN);
+        assertThat(first.reservationAvailability()).isEqualTo(ReservationAvailability.AVAILABLE);
+    }
+
+    @Test
+    void returnsClassSessionDetailFromPostgreSqlWithInstructorAndCalculatedValues() {
+        Instructor instructor = instructorRepository.save(new Instructor(
+                "김필라",
+                "https://example.com/instructors/kim.jpg"
+        ));
+        LocalDateTime startAt = WEEK_START.plusDays(3).atTime(14, 0);
+        ClassSession classSession = saveClassSession(instructor, startAt, ClassType.REFORMER);
+        classSessionRepository.flush();
+        jdbcTemplate.update(
+                "UPDATE class_session SET reserved_count = 1 WHERE id = ?",
+                classSession.getId()
+        );
+        entityManager.clear();
+
+        ClassSessionResponse result = classSessionQueryService.getClassSession(classSession.getId());
+
+        assertThat(result.classSessionId()).isEqualTo(classSession.getId());
+        assertThat(result.classType()).isEqualTo(ClassType.REFORMER);
+        assertThat(result.instructor().instructorId()).isEqualTo(instructor.getId());
+        assertThat(result.instructor().name()).isEqualTo("김필라");
+        assertThat(result.instructor().profileImageUrl())
+                .isEqualTo("https://example.com/instructors/kim.jpg");
+        assertThat(result.startAt()).isEqualTo(startAt);
+        assertThat(result.durationMinutes()).isEqualTo(50);
+        assertThat(result.endAt()).isEqualTo(startAt.plusMinutes(50));
+        assertThat(result.reservationOpenAt()).isEqualTo(RESERVATION_OPEN_AT);
+        assertThat(result.capacity()).isEqualTo(4);
+        assertThat(result.reservedCount()).isEqualTo(1);
+        assertThat(result.remainingCount()).isEqualTo(3);
+        assertThat(result.status()).isEqualTo(ClassSessionStatus.SCHEDULED);
+        assertThat(result.reservationAvailability()).isEqualTo(ReservationAvailability.AVAILABLE);
     }
 
     private ClassSession saveClassSession(
@@ -106,7 +142,7 @@ class ClassSessionQueryIntegrationTest {
                 classType,
                 startAt,
                 50,
-                LocalDateTime.of(2026, 8, 10, 9, 0),
+                RESERVATION_OPEN_AT,
                 4,
                 ClassSessionStatus.SCHEDULED
         ));

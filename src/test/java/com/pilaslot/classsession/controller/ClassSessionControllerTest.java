@@ -2,7 +2,7 @@ package com.pilaslot.classsession.controller;
 
 import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
-import com.pilaslot.classsession.domain.ReservationState;
+import com.pilaslot.classsession.domain.ReservationAvailability;
 import com.pilaslot.classsession.dto.response.ClassSessionResponse;
 import com.pilaslot.classsession.dto.response.WeeklyClassSessionResponse;
 import com.pilaslot.classsession.service.ClassSessionQueryService;
@@ -47,24 +47,7 @@ class ClassSessionControllerTest {
     void returnsWeeklyClassSessions() throws Exception {
         LocalDate weekStart = LocalDate.of(2026, 8, 17);
         LocalDateTime startAt = LocalDateTime.of(2026, 8, 20, 14, 0);
-        ClassSessionResponse response = new ClassSessionResponse(
-                1L,
-                ClassType.REFORMER,
-                new ClassSessionResponse.InstructorResponse(
-                        10L,
-                        "김필라",
-                        "https://example.com/instructors/kim.jpg"
-                ),
-                startAt,
-                50,
-                startAt.plusMinutes(50),
-                LocalDateTime.of(2026, 8, 13, 9, 0),
-                4,
-                1,
-                3,
-                ClassSessionStatus.SCHEDULED,
-                ReservationState.OPEN
-        );
+        ClassSessionResponse response = createClassSessionResponse(startAt);
         given(classSessionQueryService.getWeeklyClassSessions(weekStart))
                 .willReturn(new WeeklyClassSessionResponse(weekStart, List.of(response)));
 
@@ -80,7 +63,65 @@ class ClassSessionControllerTest {
                 .andExpect(jsonPath("$.sessions[0].startAt").value("2026-08-20T14:00:00"))
                 .andExpect(jsonPath("$.sessions[0].endAt").value("2026-08-20T14:50:00"))
                 .andExpect(jsonPath("$.sessions[0].remainingCount").value(3))
-                .andExpect(jsonPath("$.sessions[0].reservationState").value("OPEN"));
+                .andExpect(jsonPath("$.sessions[0].reservationAvailability").value("AVAILABLE"))
+                .andExpect(jsonPath("$.sessions[0].reservationState").doesNotExist());
+    }
+
+    @Test
+    void returnsClassSessionDetailWithoutAuthentication() throws Exception {
+        LocalDateTime startAt = LocalDateTime.of(2026, 8, 20, 14, 0);
+        given(classSessionQueryService.getClassSession(1L))
+                .willReturn(createClassSessionResponse(startAt));
+
+        mockMvc.perform(get("/api/v1/class-sessions/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.classSessionId").value(1))
+                .andExpect(jsonPath("$.classType").value("REFORMER"))
+                .andExpect(jsonPath("$.instructor.instructorId").value(10))
+                .andExpect(jsonPath("$.instructor.name").value("김필라"))
+                .andExpect(jsonPath("$.instructor.profileImageUrl")
+                        .value("https://example.com/instructors/kim.jpg"))
+                .andExpect(jsonPath("$.startAt").value("2026-08-20T14:00:00"))
+                .andExpect(jsonPath("$.durationMinutes").value(50))
+                .andExpect(jsonPath("$.endAt").value("2026-08-20T14:50:00"))
+                .andExpect(jsonPath("$.reservationOpenAt").value("2026-08-13T09:00:00"))
+                .andExpect(jsonPath("$.capacity").value(4))
+                .andExpect(jsonPath("$.reservedCount").value(1))
+                .andExpect(jsonPath("$.remainingCount").value(3))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.reservationAvailability").value("AVAILABLE"))
+                .andExpect(jsonPath("$.reservationState").doesNotExist())
+                .andExpect(jsonPath("$.reservationId").doesNotExist())
+                .andExpect(jsonPath("$.reservationStatus").doesNotExist())
+                .andExpect(jsonPath("$.myReservationStatus").doesNotExist())
+                .andExpect(jsonPath("$.isReservedByMe").doesNotExist())
+                .andExpect(jsonPath("$.memberId").doesNotExist())
+                .andExpect(jsonPath("$.memberName").doesNotExist());
+    }
+
+    @Test
+    void returnsClassSessionNotFoundForUnknownId() throws Exception {
+        given(classSessionQueryService.getClassSession(999999L))
+                .willThrow(new BusinessException(ErrorCode.CLASS_SESSION_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/class-sessions/999999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CLASS_SESSION_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("수업을 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/class-sessions/999999"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void returnsInvalidRequestForMalformedClassSessionId() throws Exception {
+        mockMvc.perform(get("/api/v1/class-sessions/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/class-sessions/abc"))
+                .andExpect(jsonPath("$.errors[0].field").value("classSessionId"));
     }
 
     @Test
@@ -159,5 +200,26 @@ class ClassSessionControllerTest {
                 .andExpect(jsonPath("$.timestamp").exists())
                 .andExpect(jsonPath("$.path").value("/api/v1/class-sessions"))
                 .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    private ClassSessionResponse createClassSessionResponse(LocalDateTime startAt) {
+        return new ClassSessionResponse(
+                1L,
+                ClassType.REFORMER,
+                new ClassSessionResponse.InstructorResponse(
+                        10L,
+                        "김필라",
+                        "https://example.com/instructors/kim.jpg"
+                ),
+                startAt,
+                50,
+                startAt.plusMinutes(50),
+                LocalDateTime.of(2026, 8, 13, 9, 0),
+                4,
+                1,
+                3,
+                ClassSessionStatus.SCHEDULED,
+                ReservationAvailability.AVAILABLE
+        );
     }
 }

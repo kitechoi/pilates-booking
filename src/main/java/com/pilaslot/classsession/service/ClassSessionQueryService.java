@@ -39,6 +39,16 @@ public class ClassSessionQueryService {
         return new WeeklyClassSessionResponse(weekStart, sessions);
     }
 
+    @Transactional(readOnly = true)
+    public ClassSessionResponse getClassSession(Long classSessionId) {
+        return classSessionRepository.findWithInstructorById(classSessionId)
+                .map(classSession -> ClassSessionResponse.from(
+                        classSession,
+                        LocalDateTime.now(clock)
+                ))
+                .orElseThrow(() -> new BusinessException(ErrorCode.CLASS_SESSION_NOT_FOUND));
+    }
+
     private void validateWeekStart(LocalDate weekStart) {
         if (weekStart == null || weekStart.getDayOfWeek() != DayOfWeek.MONDAY) {
             throw new BusinessException(ErrorCode.INVALID_WEEK_START);

@@ -3,7 +3,7 @@ package com.pilaslot.classsession.service;
 import com.pilaslot.classsession.domain.ClassSession;
 import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
-import com.pilaslot.classsession.domain.ReservationState;
+import com.pilaslot.classsession.domain.ReservationAvailability;
 import com.pilaslot.classsession.dto.response.ClassSessionResponse;
 import com.pilaslot.classsession.dto.response.WeeklyClassSessionResponse;
 import com.pilaslot.classsession.repository.ClassSessionRepository;
@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -68,7 +70,7 @@ class ClassSessionQueryServiceTest {
     }
 
     @Test
-    void usesInjectedClockWhenCalculatingReservationState() {
+    void usesInjectedClockWhenCalculatingReservationAvailability() {
         ZoneId zoneId = ZoneId.of("Asia/Seoul");
         LocalDate weekStart = LocalDate.of(2100, 1, 4);
         LocalDateTime now = weekStart.atTime(9, 0);
@@ -94,7 +96,61 @@ class ClassSessionQueryServiceTest {
         WeeklyClassSessionResponse result = service.getWeeklyClassSessions(weekStart);
 
         assertThat(result.sessions()).singleElement()
-                .extracting(ClassSessionResponse::reservationState)
-                .isEqualTo(ReservationState.OPEN);
+                .extracting(ClassSessionResponse::reservationAvailability)
+                .isEqualTo(ReservationAvailability.AVAILABLE);
+    }
+
+    @Test
+    void returnsClassSessionDetailWithCalculatedValues() {
+        Instructor instructor = new Instructor(
+                "김필라",
+                "https://example.com/instructors/kim.jpg"
+        );
+        ReflectionTestUtils.setField(instructor, "id", 10L);
+        LocalDateTime startAt = LocalDateTime.of(2026, 8, 20, 14, 0);
+        LocalDateTime reservationOpenAt = LocalDateTime.of(2026, 8, 13, 9, 0);
+        ClassSession classSession = new ClassSession(
+                instructor,
+                ClassType.REFORMER,
+                startAt,
+                50,
+                reservationOpenAt,
+                4,
+                ClassSessionStatus.SCHEDULED
+        );
+        ReflectionTestUtils.setField(classSession, "id", 1L);
+        ReflectionTestUtils.setField(classSession, "reservedCount", 1);
+        given(classSessionRepository.findWithInstructorById(1L))
+                .willReturn(Optional.of(classSession));
+
+        ClassSessionResponse result = classSessionQueryService.getClassSession(1L);
+
+        assertThat(result.classSessionId()).isEqualTo(1L);
+        assertThat(result.classType()).isEqualTo(ClassType.REFORMER);
+        assertThat(result.instructor()).isEqualTo(new ClassSessionResponse.InstructorResponse(
+                10L,
+                "김필라",
+                "https://example.com/instructors/kim.jpg"
+        ));
+        assertThat(result.startAt()).isEqualTo(startAt);
+        assertThat(result.durationMinutes()).isEqualTo(50);
+        assertThat(result.endAt()).isEqualTo(startAt.plusMinutes(50));
+        assertThat(result.reservationOpenAt()).isEqualTo(reservationOpenAt);
+        assertThat(result.capacity()).isEqualTo(4);
+        assertThat(result.reservedCount()).isEqualTo(1);
+        assertThat(result.remainingCount()).isEqualTo(3);
+        assertThat(result.status()).isEqualTo(ClassSessionStatus.SCHEDULED);
+        assertThat(result.reservationAvailability()).isEqualTo(ReservationAvailability.AVAILABLE);
+    }
+
+    @Test
+    void throwsClassSessionNotFoundWhenClassSessionDoesNotExist() {
+        given(classSessionRepository.findWithInstructorById(999999L))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> classSessionQueryService.getClassSession(999999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CLASS_SESSION_NOT_FOUND);
     }
 }
