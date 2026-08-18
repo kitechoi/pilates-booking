@@ -47,17 +47,17 @@ class ReservationAvailabilityTest {
     }
 
     @Test
-    void returnsExpiredAfterReservationDeadline() {
+    void returnsClosedAfterReservationDeadline() {
         ReservationAvailability result = calculate(START_AT.minusHours(2).plusNanos(1), 0, 4);
 
-        assertThat(result).isEqualTo(ReservationAvailability.EXPIRED);
+        assertThat(result).isEqualTo(ReservationAvailability.CLOSED);
     }
 
     @Test
-    void expiredTakesPriorityOverFull() {
+    void closedTakesPriorityOverFull() {
         ReservationAvailability result = calculate(START_AT.minusHours(2).plusNanos(1), 4, 4);
 
-        assertThat(result).isEqualTo(ReservationAvailability.EXPIRED);
+        assertThat(result).isEqualTo(ReservationAvailability.CLOSED);
     }
 
     @Test

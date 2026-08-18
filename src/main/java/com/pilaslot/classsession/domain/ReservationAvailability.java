@@ -6,8 +6,10 @@ public enum ReservationAvailability {
     BEFORE_OPEN,
     AVAILABLE,
     FULL,
-    EXPIRED,
+    CLOSED,
     CANCELLED;
+
+    private static final long RESERVATION_DEADLINE_HOURS = 2;
 
     public static ReservationAvailability calculate(
             ClassSessionStatus status,
@@ -23,8 +25,8 @@ public enum ReservationAvailability {
         if (now.isBefore(reservationOpenAt)) {
             return BEFORE_OPEN;
         }
-        if (now.isAfter(startAt.minusHours(2))) {
-            return EXPIRED;
+        if (now.isAfter(startAt.minusHours(RESERVATION_DEADLINE_HOURS))) {
+            return CLOSED;
         }
         if (reservedCount >= capacity) {
             return FULL;

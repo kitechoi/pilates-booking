@@ -40,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ClassSessionQueryIntegrationTest {
 
     private static final LocalDate WEEK_START = LocalDate.of(2026, 8, 17);
+    private static final LocalDateTime RESERVATION_OPEN_AT =
+            LocalDateTime.of(2026, 8, 10, 9, 0);
 
     @Autowired
     private InstructorRepository instructorRepository;
@@ -122,7 +124,7 @@ class ClassSessionQueryIntegrationTest {
         assertThat(result.startAt()).isEqualTo(startAt);
         assertThat(result.durationMinutes()).isEqualTo(50);
         assertThat(result.endAt()).isEqualTo(startAt.plusMinutes(50));
-        assertThat(result.reservationOpenAt()).isEqualTo(LocalDateTime.of(2026, 8, 10, 9, 0));
+        assertThat(result.reservationOpenAt()).isEqualTo(RESERVATION_OPEN_AT);
         assertThat(result.capacity()).isEqualTo(4);
         assertThat(result.reservedCount()).isEqualTo(1);
         assertThat(result.remainingCount()).isEqualTo(3);
@@ -140,7 +142,7 @@ class ClassSessionQueryIntegrationTest {
                 classType,
                 startAt,
                 50,
-                LocalDateTime.of(2026, 8, 10, 9, 0),
+                RESERVATION_OPEN_AT,
                 4,
                 ClassSessionStatus.SCHEDULED
         ));
