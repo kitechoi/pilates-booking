@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ClassSessionRepository extends JpaRepository<ClassSession, Long> {
 
@@ -21,5 +22,15 @@ public interface ClassSessionRepository extends JpaRepository<ClassSession, Long
     List<ClassSession> findAllWithInstructorByStartAtRange(
             @Param("startAt") LocalDateTime startAt,
             @Param("endAt") LocalDateTime endAt
+    );
+
+    @Query("""
+            SELECT classSession
+            FROM ClassSession classSession
+            JOIN FETCH classSession.instructor
+            WHERE classSession.id = :classSessionId
+            """)
+    Optional<ClassSession> findWithInstructorById(
+            @Param("classSessionId") Long classSessionId
     );
 }
