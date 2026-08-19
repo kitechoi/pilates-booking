@@ -41,6 +41,7 @@ class ReservationServiceTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long CLASS_SESSION_ID = 10L;
+    private static final Long RESERVATION_ID = 55L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 19, 13, 0);
     private static final LocalDateTime DEFAULT_START_AT = LocalDateTime.of(2026, 8, 21, 15, 0);
     private static final ZoneId ZONE_ID = ZoneId.of("Asia/Seoul");
@@ -309,6 +310,142 @@ class ReservationServiceTest {
         verify(reservationRepository, never()).save(any());
     }
 
+    @Test
+    void cancelsReservationAndDecreasesReservedCount() {
+        LocalDateTime reservedAt = NOW.minusDays(1);
+        ClassSession classSession = cancellableClassSession(DEFAULT_START_AT);
+        Reservation reservation = reservation(member, classSession, reservedAt);
+        prepareSuccessfulCancellation(reservation, 0);
+
+        reservationService.cancel(MEMBER_ID, RESERVATION_ID);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(reservation.getCancelledAt()).isEqualTo(NOW);
+        assertThat(reservation.getReservedAt()).isEqualTo(reservedAt);
+        assertThat(classSession.getReservedCount()).isZero();
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsUnknownReservation() {
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.empty());
+
+        assertCancelError(ErrorCode.RESERVATION_NOT_FOUND);
+    }
+
+    @Test
+    void rejectsReservationOwnedByAnotherMemberAsNotFound() {
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.empty());
+
+        assertCancelError(ErrorCode.RESERVATION_NOT_FOUND);
+        verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void rejectsAlreadyCancelledReservation() {
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(DEFAULT_START_AT),
+                NOW.minusDays(1)
+        );
+        reservation.cancel(NOW.minusHours(1));
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(reservation));
+
+        assertCancelError(ErrorCode.RESERVATION_ALREADY_CANCELLED);
+        verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void rejectsAfterCancellationDeadline() {
+        ClassSession classSession = cancellableClassSession(NOW.plusHours(8).minusNanos(1));
+        Reservation reservation = reservation(member, classSession, NOW.minusDays(1));
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(reservation));
+
+        assertCancelError(ErrorCode.CANCELLATION_CLOSED);
+        verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void allowsExactlyAtCancellationDeadline() {
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(NOW.plusHours(8)),
+                NOW.minusDays(1)
+        );
+        prepareSuccessfulCancellation(reservation, 0);
+
+        reservationService.cancel(MEMBER_ID, RESERVATION_ID);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+    }
+
+    @Test
+    void rejectsWhenWeeklyCancellationCountIsSeven() {
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(DEFAULT_START_AT),
+                NOW.minusDays(1)
+        );
+        prepareSuccessfulCancellation(reservation, 7);
+
+        assertCancelError(ErrorCode.WEEKLY_CANCELLATION_LIMIT_EXCEEDED);
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+        assertThat(reservation.getClassSession().getReservedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void allowsWhenWeeklyCancellationCountIsSix() {
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(DEFAULT_START_AT),
+                NOW.minusDays(1)
+        );
+        prepareSuccessfulCancellation(reservation, 6);
+
+        reservationService.cancel(MEMBER_ID, RESERVATION_ID);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+    }
+
+    @Test
+    void countsCancellationsInClassSessionWeek() {
+        LocalDateTime classStartAt = LocalDateTime.of(2026, 8, 25, 15, 0);
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(classStartAt),
+                NOW.minusDays(1)
+        );
+        prepareSuccessfulCancellation(reservation, 0);
+
+        reservationService.cancel(MEMBER_ID, RESERVATION_ID);
+
+        verify(reservationRepository).countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                LocalDateTime.of(2026, 8, 24, 0, 0),
+                LocalDateTime.of(2026, 8, 31, 0, 0)
+        );
+    }
+
     private void prepareSuccessfulReservation(ClassSession classSession, long weeklyCount) {
         given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
@@ -331,6 +468,44 @@ class ReservationServiceTest {
             ReflectionTestUtils.setField(reservation, "id", 55L);
             return reservation;
         });
+    }
+
+    private void prepareSuccessfulCancellation(Reservation reservation, long weeklyCount) {
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(reservation));
+        LocalDateTime weekStart = reservation.getClassSession().getStartAt().toLocalDate()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .atStartOfDay();
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                weekStart,
+                weekStart.plusWeeks(1)
+        )).willReturn(weeklyCount);
+    }
+
+    private Reservation reservation(
+            Member reservationMember,
+            ClassSession classSession,
+            LocalDateTime reservedAt
+    ) {
+        Reservation reservation = Reservation.reserve(
+                reservationMember,
+                classSession,
+                reservedAt
+        );
+        ReflectionTestUtils.setField(reservation, "id", RESERVATION_ID);
+        return reservation;
+    }
+
+    private ClassSession cancellableClassSession(LocalDateTime startAt) {
+        return classSession(
+                startAt,
+                NOW.minusDays(7),
+                4,
+                1,
+                ClassSessionStatus.SCHEDULED
+        );
     }
 
     private ClassSession defaultClassSession() {
@@ -366,6 +541,13 @@ class ReservationServiceTest {
 
     private void assertError(ErrorCode errorCode) {
         assertThatThrownBy(() -> reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(errorCode);
+    }
+
+    private void assertCancelError(ErrorCode errorCode) {
+        assertThatThrownBy(() -> reservationService.cancel(MEMBER_ID, RESERVATION_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(errorCode);

@@ -87,6 +87,58 @@ class ReservationRepositoryIntegrationTest {
         assertThat(count).isEqualTo(2);
     }
 
+    @Test
+    void findsReservationOnlyForItsOwner() {
+        Member owner = saveMember("lookup-owner");
+        Member otherMember = saveMember("lookup-other");
+        Instructor instructor = instructorRepository.save(new Instructor("이필라", null));
+        Reservation reservation = saveReservation(
+                owner,
+                saveClassSession(instructor, WEEK_START.plusDays(1))
+        );
+        reservationRepository.flush();
+        entityManager.clear();
+
+        assertThat(reservationRepository.findByIdAndMemberId(
+                reservation.getId(),
+                owner.getId()
+        )).isPresent();
+        assertThat(reservationRepository.findByIdAndMemberId(
+                reservation.getId(),
+                otherMember.getId()
+        )).isEmpty();
+    }
+
+    @Test
+    void countsOnlyMembersCancelledReservationsInsideClassSessionWeek() {
+        Member targetMember = saveMember("cancel-target");
+        Member otherMember = saveMember("cancel-other");
+        Instructor instructor = instructorRepository.save(new Instructor("박필라", null));
+
+        saveCancelledReservation(targetMember, saveClassSession(instructor, WEEK_START));
+        saveCancelledReservation(
+                targetMember,
+                saveClassSession(instructor, WEEK_END.minusSeconds(1))
+        );
+        saveCancelledReservation(targetMember, saveClassSession(instructor, WEEK_END));
+        saveReservation(targetMember, saveClassSession(instructor, WEEK_START.plusDays(2)));
+        saveCancelledReservation(
+                otherMember,
+                saveClassSession(instructor, WEEK_START.plusDays(3))
+        );
+        reservationRepository.flush();
+        entityManager.clear();
+
+        long count = reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                targetMember.getId(),
+                ReservationStatus.CANCELLED,
+                WEEK_START,
+                WEEK_END
+        );
+
+        assertThat(count).isEqualTo(2);
+    }
+
     private Member saveMember(String suffix) {
         return memberRepository.save(new Member(
                 "weekly-" + suffix,
@@ -114,5 +166,15 @@ class ReservationRepositoryIntegrationTest {
                 classSession,
                 classSession.getStartAt().minusDays(1)
         ));
+    }
+
+    private Reservation saveCancelledReservation(Member member, ClassSession classSession) {
+        Reservation reservation = Reservation.reserve(
+                member,
+                classSession,
+                classSession.getStartAt().minusDays(1)
+        );
+        reservation.cancel(classSession.getStartAt().minusHours(10));
+        return reservationRepository.save(reservation);
     }
 }

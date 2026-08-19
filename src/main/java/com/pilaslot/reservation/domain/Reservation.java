@@ -75,4 +75,9 @@ public class Reservation extends BaseTimeEntity {
                 null
         );
     }
+
+    public void cancel(LocalDateTime cancelledAt) {
+        this.status = ReservationStatus.CANCELLED;
+        this.cancelledAt = cancelledAt;
+    }
 }
