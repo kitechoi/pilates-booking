@@ -74,4 +74,8 @@ public class ClassSession extends BaseTimeEntity {
         this.reservedCount = 0;
         this.status = status;
     }
+
+    public void increaseReservedCount() {
+        this.reservedCount++;
+    }
 }
