@@ -9,7 +9,6 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
 
     INVALID_WEEK_START(HttpStatus.BAD_REQUEST, "weekStart는 월요일이어야 합니다."),
-    INVALID_RESERVATION_STATUS(HttpStatus.BAD_REQUEST, "예약 상태가 올바르지 않습니다."),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     INVALID_LOGIN_CREDENTIALS(HttpStatus.UNAUTHORIZED, "회원번호 또는 비밀번호가 올바르지 않습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),

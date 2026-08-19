@@ -30,20 +30,13 @@ public record ClassSessionResponse(
                 InstructorResponse.from(classSession.getInstructor()),
                 classSession.getStartAt(),
                 classSession.getDurationMinutes(),
-                classSession.getStartAt().plusMinutes(classSession.getDurationMinutes()),
+                classSession.getEndAt(),
                 classSession.getReservationOpenAt(),
                 classSession.getCapacity(),
                 classSession.getReservedCount(),
                 classSession.getCapacity() - classSession.getReservedCount(),
                 classSession.getStatus(),
-                ReservationAvailability.calculate(
-                        classSession.getStatus(),
-                        classSession.getReservationOpenAt(),
-                        classSession.getStartAt(),
-                        classSession.getReservedCount(),
-                        classSession.getCapacity(),
-                        now
-                )
+                ReservationAvailability.calculate(classSession, now)
         );
     }
 

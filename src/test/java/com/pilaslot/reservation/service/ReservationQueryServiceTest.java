@@ -28,7 +28,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +63,12 @@ class ReservationQueryServiceTest {
                         RANGE_START,
                         RANGE_END
                 )).willReturn(List.of(cancelled, reserved));
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                RANGE_START,
+                RANGE_END
+        )).willReturn(6L);
 
         MyReservationListResponse response = reservationQueryService.getMyReservations(
                 MEMBER_ID,
@@ -83,6 +89,12 @@ class ReservationQueryServiceTest {
         assertThat(response.reservations())
                 .extracting(MyReservationResponse::cancellationDeadline)
                 .containsOnly(LocalDateTime.of(2026, 8, 21, 7, 0));
+        verify(reservationRepository, times(1)).countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                RANGE_START,
+                RANGE_END
+        );
     }
 
     @Test
@@ -103,7 +115,7 @@ class ReservationQueryServiceTest {
         MyReservationListResponse response = reservationQueryService.getMyReservations(
                 MEMBER_ID,
                 WEEK_START,
-                "RESERVED"
+                ReservationStatus.RESERVED
         );
 
         assertThat(response.reservations())
@@ -129,7 +141,7 @@ class ReservationQueryServiceTest {
         MyReservationListResponse response = reservationQueryService.getMyReservations(
                 MEMBER_ID,
                 WEEK_START,
-                "CANCELLED"
+                ReservationStatus.CANCELLED
         );
 
         assertThat(response.reservations())
@@ -150,24 +162,6 @@ class ReservationQueryServiceTest {
     }
 
     @Test
-    void rejectsInvalidStatus() {
-        assertThatThrownBy(() -> reservationQueryService.getMyReservations(
-                MEMBER_ID,
-                WEEK_START,
-                "foo"
-        ))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_RESERVATION_STATUS);
-        verify(reservationRepository, never())
-                .findAllWithClassSessionAndInstructorByMemberIdAndClassSessionWeek(
-                        MEMBER_ID,
-                        RANGE_START,
-                        RANGE_END
-                );
-    }
-
-    @Test
     void mapsReservedReservationAsCancellableExactlyAtDeadline() {
         Reservation reserved = reservation(
                 55L,
@@ -180,6 +174,12 @@ class ReservationQueryServiceTest {
                         RANGE_START,
                         RANGE_END
                 )).willReturn(List.of(reserved));
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                RANGE_START,
+                RANGE_END
+        )).willReturn(6L);
 
         MyReservationListResponse response = reservationQueryService.getMyReservations(
                 MEMBER_ID,
@@ -190,6 +190,47 @@ class ReservationQueryServiceTest {
         assertThat(response.reservations()).singleElement()
                 .extracting(MyReservationResponse::cancellable)
                 .isEqualTo(true);
+        verify(reservationRepository, times(1)).countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                RANGE_START,
+                RANGE_END
+        );
+    }
+
+    @Test
+    void weeklyCancellationLimitMakesEveryReservationNotCancellable() {
+        ClassSession classSession = classSession(10L, LocalDateTime.of(2026, 8, 21, 15, 0));
+        Reservation reserved = reservation(55L, classSession, ReservationStatus.RESERVED);
+        Reservation cancelled = reservation(72L, classSession, ReservationStatus.CANCELLED);
+        given(reservationRepository
+                .findAllWithClassSessionAndInstructorByMemberIdAndClassSessionWeek(
+                        MEMBER_ID,
+                        RANGE_START,
+                        RANGE_END
+                )).willReturn(List.of(reserved, cancelled));
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                RANGE_START,
+                RANGE_END
+        )).willReturn(7L);
+
+        MyReservationListResponse response = reservationQueryService.getMyReservations(
+                MEMBER_ID,
+                WEEK_START,
+                null
+        );
+
+        assertThat(response.reservations())
+                .extracting(MyReservationResponse::cancellable)
+                .containsExactly(false, false);
+        verify(reservationRepository, times(1)).countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.CANCELLED,
+                RANGE_START,
+                RANGE_END
+        );
     }
 
     @Test

@@ -138,21 +138,22 @@ class MyReservationControllerTest {
 
     @Test
     void returnsInvalidReservationStatus() throws Exception {
-        given(reservationQueryService.getMyReservations(42L, WEEK_START, "foo"))
-                .willThrow(new BusinessException(ErrorCode.INVALID_RESERVATION_STATUS));
-
         mockMvc.perform(get("/api/v1/members/me/reservations")
                         .header("Authorization", "Bearer valid-token")
                         .param("weekStart", WEEK_START.toString())
                         .param("status", "foo"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_STATUS"))
-                .andExpect(jsonPath("$.message").value("예약 상태가 올바르지 않습니다."));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.errors[0].field").value("status"));
     }
 
     @Test
     void acceptsReservedStatusFilter() throws Exception {
-        given(reservationQueryService.getMyReservations(42L, WEEK_START, "RESERVED"))
+        given(reservationQueryService.getMyReservations(
+                42L,
+                WEEK_START,
+                ReservationStatus.RESERVED
+        ))
                 .willReturn(new MyReservationListResponse(WEEK_START, List.of()));
 
         mockMvc.perform(get("/api/v1/members/me/reservations")
@@ -161,12 +162,20 @@ class MyReservationControllerTest {
                         .param("status", "RESERVED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reservations").isEmpty());
-        verify(reservationQueryService).getMyReservations(42L, WEEK_START, "RESERVED");
+        verify(reservationQueryService).getMyReservations(
+                42L,
+                WEEK_START,
+                ReservationStatus.RESERVED
+        );
     }
 
     @Test
     void acceptsCancelledStatusFilter() throws Exception {
-        given(reservationQueryService.getMyReservations(42L, WEEK_START, "CANCELLED"))
+        given(reservationQueryService.getMyReservations(
+                42L,
+                WEEK_START,
+                ReservationStatus.CANCELLED
+        ))
                 .willReturn(new MyReservationListResponse(WEEK_START, List.of()));
 
         mockMvc.perform(get("/api/v1/members/me/reservations")
@@ -175,7 +184,11 @@ class MyReservationControllerTest {
                         .param("status", "CANCELLED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reservations").isEmpty());
-        verify(reservationQueryService).getMyReservations(42L, WEEK_START, "CANCELLED");
+        verify(reservationQueryService).getMyReservations(
+                42L,
+                WEEK_START,
+                ReservationStatus.CANCELLED
+        );
     }
 
     private MyReservationListResponse response() {
@@ -185,8 +198,8 @@ class MyReservationControllerTest {
                         "김라라",
                         "https://example.com/instructors/kim.jpg"
                 );
-        MyReservationResponse.ClassSessionResponse classSession =
-                new MyReservationResponse.ClassSessionResponse(
+        MyReservationResponse.ClassSessionSummary classSession =
+                new MyReservationResponse.ClassSessionSummary(
                         10L,
                         ClassType.CHAIR_BARREL,
                         LocalDateTime.of(2026, 8, 17, 19, 0),

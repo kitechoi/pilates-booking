@@ -15,22 +15,26 @@ public record MyReservationResponse(
         LocalDateTime cancelledAt,
         boolean cancellable,
         LocalDateTime cancellationDeadline,
-        ClassSessionResponse classSession
+        ClassSessionSummary classSession
 ) {
 
-    public static MyReservationResponse from(Reservation reservation, LocalDateTime now) {
+    public static MyReservationResponse from(
+            Reservation reservation,
+            LocalDateTime now,
+            boolean weeklyCancellationAvailable
+    ) {
         return new MyReservationResponse(
                 reservation.getId(),
                 reservation.getStatus(),
                 reservation.getReservedAt(),
                 reservation.getCancelledAt(),
-                reservation.isCancellableAt(now),
+                reservation.isCancellableAt(now) && weeklyCancellationAvailable,
                 reservation.getCancellationDeadline(),
-                ClassSessionResponse.from(reservation.getClassSession())
+                ClassSessionSummary.from(reservation.getClassSession())
         );
     }
 
-    public record ClassSessionResponse(
+    public record ClassSessionSummary(
             Long classSessionId,
             ClassType classType,
             LocalDateTime startAt,
@@ -38,12 +42,12 @@ public record MyReservationResponse(
             InstructorResponse instructor
     ) {
 
-        private static ClassSessionResponse from(ClassSession classSession) {
-            return new ClassSessionResponse(
+        private static ClassSessionSummary from(ClassSession classSession) {
+            return new ClassSessionSummary(
                     classSession.getId(),
                     classSession.getClassType(),
                     classSession.getStartAt(),
-                    classSession.getStartAt().plusMinutes(classSession.getDurationMinutes()),
+                    classSession.getEndAt(),
                     InstructorResponse.from(classSession.getInstructor())
             );
         }

@@ -1,6 +1,7 @@
 package com.pilaslot.reservation.controller;
 
 import com.pilaslot.global.security.AuthenticatedMember;
+import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.dto.response.MyReservationListResponse;
 import com.pilaslot.reservation.service.ReservationQueryService;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ public class MyReservationController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate weekStart,
             @RequestParam(required = false)
-            String status,
+            ReservationStatus status,
             @AuthenticationPrincipal AuthenticatedMember authenticatedMember
     ) {
         return reservationQueryService.getMyReservations(

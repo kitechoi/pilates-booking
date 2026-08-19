@@ -9,26 +9,20 @@ public enum ReservationAvailability {
     CLOSED,
     CANCELLED;
 
-    private static final long RESERVATION_DEADLINE_HOURS = 2;
-
     public static ReservationAvailability calculate(
-            ClassSessionStatus status,
-            LocalDateTime reservationOpenAt,
-            LocalDateTime startAt,
-            int reservedCount,
-            int capacity,
+            ClassSession classSession,
             LocalDateTime now
     ) {
-        if (status == ClassSessionStatus.CANCELLED) {
+        if (classSession.getStatus() == ClassSessionStatus.CANCELLED) {
             return CANCELLED;
         }
-        if (now.isBefore(reservationOpenAt)) {
+        if (now.isBefore(classSession.getReservationOpenAt())) {
             return BEFORE_OPEN;
         }
-        if (now.isAfter(startAt.minusHours(RESERVATION_DEADLINE_HOURS))) {
+        if (now.isAfter(classSession.getReservationDeadline())) {
             return CLOSED;
         }
-        if (reservedCount >= capacity) {
+        if (classSession.getReservedCount() >= classSession.getCapacity()) {
             return FULL;
         }
         return AVAILABLE;
