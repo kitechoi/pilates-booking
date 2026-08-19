@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,6 +94,7 @@ class ReservationServiceTest {
                 memberRepository
         );
         inOrder.verify(classSessionRepository).findById(CLASS_SESSION_ID);
+        inOrder.verify(memberRepository).findById(MEMBER_ID);
         inOrder.verify(reservationRepository).existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -104,7 +106,6 @@ class ReservationServiceTest {
                 LocalDateTime.of(2026, 8, 17, 0, 0),
                 LocalDateTime.of(2026, 8, 24, 0, 0)
         );
-        inOrder.verify(memberRepository).findById(MEMBER_ID);
         inOrder.verify(reservationRepository).save(any(Reservation.class));
     }
 
@@ -190,6 +191,7 @@ class ReservationServiceTest {
     void rejectsDuplicateActiveReservation() {
         ClassSession classSession = defaultClassSession();
         given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -218,6 +220,7 @@ class ReservationServiceTest {
     void rejectsWhenWeeklyActiveReservationCountIsFourteen() {
         ClassSession classSession = defaultClassSession();
         given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -253,6 +256,7 @@ class ReservationServiceTest {
                 ClassSessionStatus.SCHEDULED
         );
         given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -288,20 +292,21 @@ class ReservationServiceTest {
     void rejectsWhenAuthenticatedMemberNoLongerExists() {
         ClassSession classSession = defaultClassSession();
         given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
-        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
-                MEMBER_ID,
-                CLASS_SESSION_ID,
-                ReservationStatus.RESERVED
-        )).willReturn(false);
-        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
-                MEMBER_ID,
-                ReservationStatus.RESERVED,
-                LocalDateTime.of(2026, 8, 17, 0, 0),
-                LocalDateTime.of(2026, 8, 24, 0, 0)
-        )).willReturn(0L);
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 
         assertError(ErrorCode.UNAUTHORIZED);
+        verify(reservationRepository, never()).existsByMemberIdAndClassSessionIdAndStatus(
+                any(),
+                any(),
+                any()
+        );
+        verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
+                any(),
+                any(),
+                any(),
+                any()
+        );
+        verify(reservationRepository, never()).save(any());
     }
 
     private void prepareSuccessfulReservation(ClassSession classSession, long weeklyCount) {

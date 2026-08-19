@@ -41,12 +41,13 @@ public class ReservationService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         validateReservationTime(classSession, now);
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
         validateDuplicate(memberId, classSessionId);
         validateWeeklyLimit(memberId, classSession.getStartAt());
         validateCapacity(classSession);
 
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
         Reservation reservation = Reservation.reserve(member, classSession, now);
         Reservation savedReservation = reservationRepository.save(reservation);
         classSession.increaseReservedCount();
