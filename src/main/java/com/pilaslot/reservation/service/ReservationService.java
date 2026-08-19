@@ -26,7 +26,6 @@ import java.time.temporal.TemporalAdjusters;
 public class ReservationService {
 
     private static final int RESERVATION_DEADLINE_HOURS = 2;
-    private static final int CANCELLATION_DEADLINE_HOURS = 8;
     private static final long WEEKLY_RESERVATION_LIMIT = 14;
     private static final long WEEKLY_CANCELLATION_LIMIT = 7;
 
@@ -65,7 +64,7 @@ public class ReservationService {
         validateReservationStatus(reservation);
 
         LocalDateTime now = LocalDateTime.now(clock);
-        validateCancellationTime(reservation.getClassSession(), now);
+        validateCancellationTime(reservation, now);
         validateWeeklyCancellationLimit(memberId, reservation.getClassSession().getStartAt());
 
         reservation.cancel(now);
@@ -128,10 +127,8 @@ public class ReservationService {
         }
     }
 
-    private void validateCancellationTime(ClassSession classSession, LocalDateTime now) {
-        LocalDateTime deadline = classSession.getStartAt()
-                .minusHours(CANCELLATION_DEADLINE_HOURS);
-        if (now.isAfter(deadline)) {
+    private void validateCancellationTime(Reservation reservation, LocalDateTime now) {
+        if (now.isAfter(reservation.getCancellationDeadline())) {
             throw new BusinessException(ErrorCode.CANCELLATION_CLOSED);
         }
     }

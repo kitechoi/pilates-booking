@@ -21,6 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -107,6 +108,93 @@ class ReservationRepositoryIntegrationTest {
                 reservation.getId(),
                 otherMember.getId()
         )).isEmpty();
+    }
+
+    @Test
+    void findsMembersReservationHistoryWithWeekStatusAndStableOrdering() {
+        Member targetMember = saveMember("history-target");
+        Member otherMember = saveMember("history-other");
+        Instructor instructor = instructorRepository.save(new Instructor(
+                "김라라",
+                "https://example.com/instructors/kim.jpg"
+        ));
+        ClassSession previousWeek = saveClassSession(
+                instructor,
+                WEEK_START.minusSeconds(1)
+        );
+        ClassSession weekBoundary = saveClassSession(instructor, WEEK_START);
+        ClassSession rebookedClassSession = saveClassSession(
+                instructor,
+                WEEK_START.plusDays(2).plusHours(19)
+        );
+        ClassSession weekEndBoundary = saveClassSession(
+                instructor,
+                WEEK_END.minusSeconds(1)
+        );
+        ClassSession nextWeek = saveClassSession(instructor, WEEK_END);
+
+        saveReservation(targetMember, previousWeek);
+        Reservation first = saveReservation(targetMember, weekBoundary);
+        Reservation cancelled = saveCancelledReservation(targetMember, rebookedClassSession);
+        Reservation rebooked = saveReservation(targetMember, rebookedClassSession);
+        Reservation last = saveCancelledReservation(targetMember, weekEndBoundary);
+        saveReservation(targetMember, nextWeek);
+        saveReservation(otherMember, rebookedClassSession);
+        reservationRepository.flush();
+        entityManager.clear();
+
+        List<Reservation> all = reservationRepository
+                .findAllWithClassSessionAndInstructorByMemberIdAndClassSessionWeek(
+                        targetMember.getId(),
+                        WEEK_START,
+                        WEEK_END
+                );
+        List<Reservation> reserved = reservationRepository
+                .findAllWithClassSessionAndInstructorByMemberIdAndStatusAndClassSessionWeek(
+                        targetMember.getId(),
+                        ReservationStatus.RESERVED,
+                        WEEK_START,
+                        WEEK_END
+                );
+        List<Reservation> cancelledOnly = reservationRepository
+                .findAllWithClassSessionAndInstructorByMemberIdAndStatusAndClassSessionWeek(
+                        targetMember.getId(),
+                        ReservationStatus.CANCELLED,
+                        WEEK_START,
+                        WEEK_END
+                );
+
+        assertThat(all)
+                .extracting(Reservation::getId)
+                .containsExactly(
+                        first.getId(),
+                        cancelled.getId(),
+                        rebooked.getId(),
+                        last.getId()
+                );
+        assertThat(all)
+                .extracting(Reservation::getStatus)
+                .containsExactly(
+                        ReservationStatus.RESERVED,
+                        ReservationStatus.CANCELLED,
+                        ReservationStatus.RESERVED,
+                        ReservationStatus.CANCELLED
+                );
+        assertThat(all).allSatisfy(reservation -> {
+            assertThat(reservation.getClassSession().getStartAt())
+                    .isAfterOrEqualTo(WEEK_START)
+                    .isBefore(WEEK_END);
+            assertThat(reservation.getClassSession().getInstructor().getName())
+                    .isEqualTo("김라라");
+        });
+        assertThat(reserved)
+                .extracting(Reservation::getId)
+                .containsExactly(first.getId(), rebooked.getId());
+        assertThat(cancelledOnly)
+                .extracting(Reservation::getId)
+                .containsExactly(cancelled.getId(), last.getId());
+        assertThat(cancelled.getClassSession().getId())
+                .isEqualTo(rebooked.getClassSession().getId());
     }
 
     @Test
