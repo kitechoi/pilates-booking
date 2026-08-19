@@ -24,8 +24,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,6 +113,51 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.timestamp").exists())
                 .andExpect(jsonPath("$.path")
                         .value("/api/v1/class-sessions/999/reservations"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void returnsUnauthorizedWhenCancellingWithoutToken() throws Exception {
+        mockMvc.perform(delete("/api/v1/reservations/55"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/reservations/55"));
+    }
+
+    @Test
+    void cancelsReservationUsingAuthenticatedMemberId() throws Exception {
+        mockMvc.perform(delete("/api/v1/reservations/55")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(reservationService).cancel(42L, 55L);
+    }
+
+    @Test
+    void returnsInvalidRequestForMalformedReservationId() throws Exception {
+        mockMvc.perform(delete("/api/v1/reservations/not-a-number")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/v1/reservations/not-a-number"));
+    }
+
+    @Test
+    void returnsExistingErrorResponseWhenCancellationFails() throws Exception {
+        willThrow(new BusinessException(ErrorCode.RESERVATION_NOT_FOUND))
+                .given(reservationService)
+                .cancel(42L, 999L);
+
+        mockMvc.perform(delete("/api/v1/reservations/999")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESERVATION_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("예약을 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/reservations/999"))
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
 }

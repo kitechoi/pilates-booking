@@ -78,4 +78,8 @@ public class ClassSession extends BaseTimeEntity {
     public void increaseReservedCount() {
         this.reservedCount++;
     }
+
+    public void decreaseReservedCount() {
+        this.reservedCount--;
+    }
 }

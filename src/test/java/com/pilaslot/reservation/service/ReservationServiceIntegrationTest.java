@@ -102,6 +102,64 @@ class ReservationServiceIntegrationTest {
                 .isEqualTo(ErrorCode.DUPLICATE_RESERVATION);
     }
 
+    @Test
+    void persistsCancellationAndReservedCountInOneTransaction() {
+        Fixture fixture = persistFixture("cancel");
+        ReservationCreateResponse response = reservationService.reserve(
+                fixture.member().getId(),
+                fixture.classSession().getId()
+        );
+        entityManager.flush();
+        LocalDateTime reservedAt = response.reservedAt();
+
+        reservationService.cancel(fixture.member().getId(), response.id());
+        entityManager.flush();
+        entityManager.clear();
+
+        Reservation reservation = reservationRepository.findById(response.id()).orElseThrow();
+        ClassSession classSession = classSessionRepository.findById(
+                fixture.classSession().getId()
+        ).orElseThrow();
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(reservation.getCancelledAt()).isEqualTo(NOW);
+        assertThat(reservation.getReservedAt()).isEqualTo(reservedAt);
+        assertThat(classSession.getReservedCount()).isZero();
+    }
+
+    @Test
+    void createsNewReservationRowWhenRebookingAfterCancellation() {
+        Fixture fixture = persistFixture("rebook");
+        ReservationCreateResponse firstResponse = reservationService.reserve(
+                fixture.member().getId(),
+                fixture.classSession().getId()
+        );
+
+        reservationService.cancel(fixture.member().getId(), firstResponse.id());
+        ReservationCreateResponse secondResponse = reservationService.reserve(
+                fixture.member().getId(),
+                fixture.classSession().getId()
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        Reservation firstReservation = reservationRepository.findById(
+                firstResponse.id()
+        ).orElseThrow();
+        Reservation secondReservation = reservationRepository.findById(
+                secondResponse.id()
+        ).orElseThrow();
+        ClassSession classSession = classSessionRepository.findById(
+                fixture.classSession().getId()
+        ).orElseThrow();
+        assertThat(firstReservation.getId()).isNotEqualTo(secondReservation.getId());
+        assertThat(firstReservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(firstReservation.getCancelledAt()).isEqualTo(NOW);
+        assertThat(secondReservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+        assertThat(secondReservation.getCancelledAt()).isNull();
+        assertThat(reservationRepository.findAll()).hasSize(2);
+        assertThat(classSession.getReservedCount()).isEqualTo(1);
+    }
+
     private Fixture persistFixture(String suffix) {
         Member member = memberRepository.save(new Member(
                 "reservation-" + suffix,

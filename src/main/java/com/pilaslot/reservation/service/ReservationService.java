@@ -26,7 +26,9 @@ import java.time.temporal.TemporalAdjusters;
 public class ReservationService {
 
     private static final int RESERVATION_DEADLINE_HOURS = 2;
+    private static final int CANCELLATION_DEADLINE_HOURS = 8;
     private static final long WEEKLY_RESERVATION_LIMIT = 14;
+    private static final long WEEKLY_CANCELLATION_LIMIT = 7;
 
     private final ClassSessionRepository classSessionRepository;
     private final MemberRepository memberRepository;
@@ -53,6 +55,21 @@ public class ReservationService {
         classSession.increaseReservedCount();
 
         return ReservationCreateResponse.from(savedReservation);
+    }
+
+    @Transactional
+    public void cancel(Long memberId, Long reservationId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+        validateOwner(reservation, memberId);
+        validateReservationStatus(reservation);
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        validateCancellationTime(reservation.getClassSession(), now);
+        validateWeeklyCancellationLimit(memberId, reservation.getClassSession().getStartAt());
+
+        reservation.cancel(now);
+        reservation.getClassSession().decreaseReservedCount();
     }
 
     private void validateClassSessionStatus(ClassSession classSession) {
@@ -102,6 +119,42 @@ public class ReservationService {
     private void validateCapacity(ClassSession classSession) {
         if (classSession.getReservedCount() >= classSession.getCapacity()) {
             throw new BusinessException(ErrorCode.CLASS_SESSION_FULL);
+        }
+    }
+
+    private void validateOwner(Reservation reservation, Long memberId) {
+        if (!reservation.getMember().getId().equals(memberId)) {
+            throw new BusinessException(ErrorCode.RESERVATION_ACCESS_DENIED);
+        }
+    }
+
+    private void validateReservationStatus(Reservation reservation) {
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.RESERVATION_ALREADY_CANCELLED);
+        }
+    }
+
+    private void validateCancellationTime(ClassSession classSession, LocalDateTime now) {
+        LocalDateTime deadline = classSession.getStartAt()
+                .minusHours(CANCELLATION_DEADLINE_HOURS);
+        if (now.isAfter(deadline)) {
+            throw new BusinessException(ErrorCode.CANCELLATION_CLOSED);
+        }
+    }
+
+    private void validateWeeklyCancellationLimit(Long memberId, LocalDateTime classStartAt) {
+        LocalDate weekStartDate = classStartAt.toLocalDate()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDateTime weekStart = weekStartDate.atStartOfDay();
+        LocalDateTime weekEnd = weekStart.plusWeeks(1);
+        long cancellationCount = reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                memberId,
+                ReservationStatus.CANCELLED,
+                weekStart,
+                weekEnd
+        );
+        if (cancellationCount >= WEEKLY_CANCELLATION_LIMIT) {
+            throw new BusinessException(ErrorCode.WEEKLY_CANCELLATION_LIMIT_EXCEEDED);
         }
     }
 }

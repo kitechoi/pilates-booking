@@ -6,6 +6,7 @@ import com.pilaslot.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,17 +15,26 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/class-sessions/{classSessionId}/reservations")
+@RequestMapping("/api/v1")
 public class ReservationController {
 
     private final ReservationService reservationService;
 
-    @PostMapping
+    @PostMapping("/class-sessions/{classSessionId}/reservations")
     @ResponseStatus(HttpStatus.CREATED)
     public ReservationCreateResponse reserve(
             @PathVariable Long classSessionId,
             @AuthenticationPrincipal AuthenticatedMember authenticatedMember
     ) {
         return reservationService.reserve(authenticatedMember.memberId(), classSessionId);
+    }
+
+    @DeleteMapping("/reservations/{reservationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancel(
+            @PathVariable Long reservationId,
+            @AuthenticationPrincipal AuthenticatedMember authenticatedMember
+    ) {
+        reservationService.cancel(authenticatedMember.memberId(), reservationId);
     }
 }
