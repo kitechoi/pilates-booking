@@ -60,11 +60,11 @@ public class ReservationQueryService {
                         rangeEnd
                 );
         List<MyReservationResponse> responses = reservations.stream()
-                .map(reservation -> MyReservationResponse.from(
-                        reservation,
-                        now,
-                        weeklyCancellationAvailable
-                ))
+                .map(reservation -> {
+                    boolean cancellable = reservation.isCancellableAt(now)
+                            && weeklyCancellationAvailable;
+                    return MyReservationResponse.from(reservation, cancellable);
+                })
                 .toList();
 
         return new MyReservationListResponse(weekStart, responses);

@@ -92,4 +92,8 @@ public class ClassSession extends BaseTimeEntity {
     public LocalDateTime getEndAt() {
         return startAt.plusMinutes(durationMinutes);
     }
+
+    public int getRemainingCount() {
+        return capacity - reservedCount;
+    }
 }

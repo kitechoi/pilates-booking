@@ -27,6 +27,24 @@ class ClassSessionTest {
                 .isEqualTo(LocalDateTime.of(2026, 8, 20, 19, 50));
     }
 
+    @Test
+    void calculatesRemainingCount() {
+        ClassSession classSession = classSession();
+        classSession.increaseReservedCount();
+
+        assertThat(classSession.getRemainingCount()).isEqualTo(3);
+    }
+
+    @Test
+    void exposesNegativeRemainingCountWithoutClamping() {
+        ClassSession classSession = classSession();
+        for (int i = 0; i < 5; i++) {
+            classSession.increaseReservedCount();
+        }
+
+        assertThat(classSession.getRemainingCount()).isEqualTo(-1);
+    }
+
     private ClassSession classSession() {
         return new ClassSession(
                 new Instructor("김필라", null),

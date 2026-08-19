@@ -34,7 +34,7 @@ public record ClassSessionResponse(
                 classSession.getReservationOpenAt(),
                 classSession.getCapacity(),
                 classSession.getReservedCount(),
-                classSession.getCapacity() - classSession.getReservedCount(),
+                classSession.getRemainingCount(),
                 classSession.getStatus(),
                 ReservationAvailability.calculate(classSession, now)
         );

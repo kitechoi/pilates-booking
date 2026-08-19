@@ -20,15 +20,14 @@ public record MyReservationResponse(
 
     public static MyReservationResponse from(
             Reservation reservation,
-            LocalDateTime now,
-            boolean weeklyCancellationAvailable
+            boolean cancellable
     ) {
         return new MyReservationResponse(
                 reservation.getId(),
                 reservation.getStatus(),
                 reservation.getReservedAt(),
                 reservation.getCancelledAt(),
-                reservation.isCancellableAt(now) && weeklyCancellationAvailable,
+                cancellable,
                 reservation.getCancellationDeadline(),
                 ClassSessionSummary.from(reservation.getClassSession())
         );
