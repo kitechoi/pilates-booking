@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ClassSession extends BaseTimeEntity {
 
+    private static final int RESERVATION_DEADLINE_HOURS = 2;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -81,5 +83,17 @@ public class ClassSession extends BaseTimeEntity {
 
     public void decreaseReservedCount() {
         this.reservedCount--;
+    }
+
+    public LocalDateTime getReservationDeadline() {
+        return startAt.minusHours(RESERVATION_DEADLINE_HOURS);
+    }
+
+    public LocalDateTime getEndAt() {
+        return startAt.plusMinutes(durationMinutes);
+    }
+
+    public int getRemainingCount() {
+        return capacity - reservedCount;
     }
 }

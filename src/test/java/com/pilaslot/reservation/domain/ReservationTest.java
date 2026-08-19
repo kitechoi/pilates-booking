@@ -61,4 +61,78 @@ class ReservationTest {
         assertThat(reservation.getMember()).isSameAs(member);
         assertThat(reservation.getClassSession()).isSameAs(classSession);
     }
+
+    @Test
+    void calculatesCancellationDeadlineEightHoursBeforeClassStart() {
+        Reservation reservation = reservationStartingAt(
+                LocalDateTime.of(2026, 8, 22, 13, 0)
+        );
+
+        assertThat(reservation.getCancellationDeadline())
+                .isEqualTo(LocalDateTime.of(2026, 8, 22, 5, 0));
+    }
+
+    @Test
+    void reservedReservationIsCancellableBeforeDeadline() {
+        Reservation reservation = reservationStartingAt(
+                LocalDateTime.of(2026, 8, 22, 13, 0)
+        );
+
+        assertThat(reservation.isCancellableAt(
+                LocalDateTime.of(2026, 8, 22, 4, 59, 59)
+        )).isTrue();
+    }
+
+    @Test
+    void reservedReservationIsCancellableExactlyAtDeadline() {
+        Reservation reservation = reservationStartingAt(
+                LocalDateTime.of(2026, 8, 22, 13, 0)
+        );
+
+        assertThat(reservation.isCancellableAt(
+                LocalDateTime.of(2026, 8, 22, 5, 0)
+        )).isTrue();
+    }
+
+    @Test
+    void reservedReservationIsNotCancellableAfterDeadline() {
+        Reservation reservation = reservationStartingAt(
+                LocalDateTime.of(2026, 8, 22, 13, 0)
+        );
+
+        assertThat(reservation.isCancellableAt(
+                LocalDateTime.of(2026, 8, 22, 5, 0, 0, 1)
+        )).isFalse();
+    }
+
+    @Test
+    void cancelledReservationIsNotCancellableBeforeDeadline() {
+        Reservation reservation = reservationStartingAt(
+                LocalDateTime.of(2026, 8, 22, 13, 0)
+        );
+        reservation.cancel(LocalDateTime.of(2026, 8, 21, 10, 0));
+
+        assertThat(reservation.isCancellableAt(
+                LocalDateTime.of(2026, 8, 22, 4, 0)
+        )).isFalse();
+    }
+
+    private Reservation reservationStartingAt(LocalDateTime startAt) {
+        Member member = new Member(
+                "cancellable-member",
+                "encoded-password",
+                "Member",
+                "010-0000-0000"
+        );
+        ClassSession classSession = new ClassSession(
+                new Instructor("Instructor", null),
+                ClassType.REFORMER,
+                startAt,
+                50,
+                startAt.minusDays(7),
+                4,
+                ClassSessionStatus.SCHEDULED
+        );
+        return Reservation.reserve(member, classSession, startAt.minusDays(1));
+    }
 }

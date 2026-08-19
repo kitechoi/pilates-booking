@@ -8,6 +8,7 @@ import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
 import com.pilaslot.reservation.domain.Reservation;
+import com.pilaslot.reservation.domain.ReservationPolicy;
 import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.dto.response.ReservationCreateResponse;
 import com.pilaslot.reservation.repository.ReservationRepository;
@@ -24,11 +25,6 @@ import java.time.temporal.TemporalAdjusters;
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
-
-    private static final int RESERVATION_DEADLINE_HOURS = 2;
-    private static final int CANCELLATION_DEADLINE_HOURS = 8;
-    private static final long WEEKLY_RESERVATION_LIMIT = 14;
-    private static final long WEEKLY_CANCELLATION_LIMIT = 7;
 
     private final ClassSessionRepository classSessionRepository;
     private final MemberRepository memberRepository;
@@ -65,7 +61,7 @@ public class ReservationService {
         validateReservationStatus(reservation);
 
         LocalDateTime now = LocalDateTime.now(clock);
-        validateCancellationTime(reservation.getClassSession(), now);
+        validateCancellationTime(reservation, now);
         validateWeeklyCancellationLimit(memberId, reservation.getClassSession().getStartAt());
 
         reservation.cancel(now);
@@ -82,9 +78,7 @@ public class ReservationService {
         if (now.isBefore(classSession.getReservationOpenAt())) {
             throw new BusinessException(ErrorCode.RESERVATION_NOT_OPEN);
         }
-        LocalDateTime deadline = classSession.getStartAt()
-                .minusHours(RESERVATION_DEADLINE_HOURS);
-        if (now.isAfter(deadline)) {
+        if (now.isAfter(classSession.getReservationDeadline())) {
             throw new BusinessException(ErrorCode.RESERVATION_CLOSED);
         }
     }
@@ -111,7 +105,7 @@ public class ReservationService {
                 weekStart,
                 weekEnd
         );
-        if (activeReservationCount >= WEEKLY_RESERVATION_LIMIT) {
+        if (ReservationPolicy.isWeeklyReservationLimitReached(activeReservationCount)) {
             throw new BusinessException(ErrorCode.WEEKLY_RESERVATION_LIMIT_EXCEEDED);
         }
     }
@@ -128,10 +122,8 @@ public class ReservationService {
         }
     }
 
-    private void validateCancellationTime(ClassSession classSession, LocalDateTime now) {
-        LocalDateTime deadline = classSession.getStartAt()
-                .minusHours(CANCELLATION_DEADLINE_HOURS);
-        if (now.isAfter(deadline)) {
+    private void validateCancellationTime(Reservation reservation, LocalDateTime now) {
+        if (now.isAfter(reservation.getCancellationDeadline())) {
             throw new BusinessException(ErrorCode.CANCELLATION_CLOSED);
         }
     }
@@ -147,7 +139,7 @@ public class ReservationService {
                 weekStart,
                 weekEnd
         );
-        if (cancellationCount >= WEEKLY_CANCELLATION_LIMIT) {
+        if (ReservationPolicy.isWeeklyCancellationLimitReached(cancellationCount)) {
             throw new BusinessException(ErrorCode.WEEKLY_CANCELLATION_LIMIT_EXCEEDED);
         }
     }
