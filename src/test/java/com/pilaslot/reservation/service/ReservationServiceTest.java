@@ -1,0 +1,373 @@
+package com.pilaslot.reservation.service;
+
+import com.pilaslot.classsession.domain.ClassSession;
+import com.pilaslot.classsession.domain.ClassSessionStatus;
+import com.pilaslot.classsession.domain.ClassType;
+import com.pilaslot.classsession.repository.ClassSessionRepository;
+import com.pilaslot.global.exception.BusinessException;
+import com.pilaslot.global.exception.ErrorCode;
+import com.pilaslot.instructor.domain.Instructor;
+import com.pilaslot.member.domain.Member;
+import com.pilaslot.member.repository.MemberRepository;
+import com.pilaslot.reservation.domain.Reservation;
+import com.pilaslot.reservation.domain.ReservationStatus;
+import com.pilaslot.reservation.dto.response.ReservationCreateResponse;
+import com.pilaslot.reservation.repository.ReservationRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+@ExtendWith(MockitoExtension.class)
+class ReservationServiceTest {
+
+    private static final Long MEMBER_ID = 1L;
+    private static final Long CLASS_SESSION_ID = 10L;
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 19, 13, 0);
+    private static final LocalDateTime DEFAULT_START_AT = LocalDateTime.of(2026, 8, 21, 15, 0);
+    private static final ZoneId ZONE_ID = ZoneId.of("Asia/Seoul");
+
+    @Mock
+    private ClassSessionRepository classSessionRepository;
+
+    @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
+    private ReservationRepository reservationRepository;
+
+    private Member member;
+    private ReservationService reservationService;
+
+    @BeforeEach
+    void setUp() {
+        Clock clock = Clock.fixed(NOW.atZone(ZONE_ID).toInstant(), ZONE_ID);
+        reservationService = new ReservationService(
+                classSessionRepository,
+                memberRepository,
+                reservationRepository,
+                clock
+        );
+        member = new Member("1234", "encoded-password", "홍길동", "010-1234-5678");
+        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+    }
+
+    @Test
+    void createsReservationAndIncreasesReservedCount() {
+        ClassSession classSession = classSession(
+                DEFAULT_START_AT,
+                NOW.minusDays(1),
+                4,
+                1,
+                ClassSessionStatus.SCHEDULED
+        );
+        prepareSuccessfulReservation(classSession, 0);
+
+        ReservationCreateResponse response = reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
+
+        assertThat(response.id()).isEqualTo(55L);
+        assertThat(response.classSessionId()).isEqualTo(CLASS_SESSION_ID);
+        assertThat(response.status()).isEqualTo(ReservationStatus.RESERVED);
+        assertThat(response.reservedAt()).isEqualTo(NOW);
+        assertThat(classSession.getReservedCount()).isEqualTo(2);
+        InOrder inOrder = inOrder(
+                classSessionRepository,
+                reservationRepository,
+                memberRepository
+        );
+        inOrder.verify(classSessionRepository).findById(CLASS_SESSION_ID);
+        inOrder.verify(memberRepository).findById(MEMBER_ID);
+        inOrder.verify(reservationRepository).existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        );
+        inOrder.verify(reservationRepository).countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.RESERVED,
+                LocalDateTime.of(2026, 8, 17, 0, 0),
+                LocalDateTime.of(2026, 8, 24, 0, 0)
+        );
+        inOrder.verify(reservationRepository).save(any(Reservation.class));
+    }
+
+    @Test
+    void rejectsUnknownClassSession() {
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.empty());
+
+        assertError(ErrorCode.CLASS_SESSION_NOT_FOUND);
+    }
+
+    @Test
+    void rejectsCancelledClassSession() {
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
+                DEFAULT_START_AT,
+                NOW.minusDays(1),
+                4,
+                0,
+                ClassSessionStatus.CANCELLED
+        )));
+
+        assertError(ErrorCode.CLASS_SESSION_CANCELLED);
+    }
+
+    @Test
+    void rejectsBeforeReservationOpenTime() {
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
+                DEFAULT_START_AT,
+                NOW.plusNanos(1),
+                4,
+                0,
+                ClassSessionStatus.SCHEDULED
+        )));
+
+        assertError(ErrorCode.RESERVATION_NOT_OPEN);
+    }
+
+    @Test
+    void allowsExactlyAtReservationOpenTime() {
+        ClassSession classSession = classSession(
+                DEFAULT_START_AT,
+                NOW,
+                4,
+                0,
+                ClassSessionStatus.SCHEDULED
+        );
+        prepareSuccessfulReservation(classSession, 0);
+
+        ReservationCreateResponse response = reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
+
+        assertThat(response.status()).isEqualTo(ReservationStatus.RESERVED);
+    }
+
+    @Test
+    void rejectsAfterReservationDeadline() {
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
+                NOW.plusHours(2).minusNanos(1),
+                NOW.minusDays(1),
+                4,
+                0,
+                ClassSessionStatus.SCHEDULED
+        )));
+
+        assertError(ErrorCode.RESERVATION_CLOSED);
+    }
+
+    @Test
+    void allowsExactlyAtReservationDeadline() {
+        ClassSession classSession = classSession(
+                NOW.plusHours(2),
+                NOW.minusDays(1),
+                4,
+                0,
+                ClassSessionStatus.SCHEDULED
+        );
+        prepareSuccessfulReservation(classSession, 0);
+
+        ReservationCreateResponse response = reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
+
+        assertThat(response.status()).isEqualTo(ReservationStatus.RESERVED);
+    }
+
+    @Test
+    void rejectsDuplicateActiveReservation() {
+        ClassSession classSession = defaultClassSession();
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        )).willReturn(true);
+
+        assertError(ErrorCode.DUPLICATE_RESERVATION);
+    }
+
+    @Test
+    void allowsReservationWhenOnlyCancelledHistoryExists() {
+        ClassSession classSession = defaultClassSession();
+        prepareSuccessfulReservation(classSession, 0);
+
+        ReservationCreateResponse response = reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
+
+        assertThat(response.status()).isEqualTo(ReservationStatus.RESERVED);
+        verify(reservationRepository).existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        );
+    }
+
+    @Test
+    void rejectsWhenWeeklyActiveReservationCountIsFourteen() {
+        ClassSession classSession = defaultClassSession();
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        )).willReturn(false);
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.RESERVED,
+                LocalDateTime.of(2026, 8, 17, 0, 0),
+                LocalDateTime.of(2026, 8, 24, 0, 0)
+        )).willReturn(14L);
+
+        assertError(ErrorCode.WEEKLY_RESERVATION_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    void allowsWhenWeeklyActiveReservationCountIsThirteen() {
+        ClassSession classSession = defaultClassSession();
+        prepareSuccessfulReservation(classSession, 13);
+
+        ReservationCreateResponse response = reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
+
+        assertThat(response.status()).isEqualTo(ReservationStatus.RESERVED);
+    }
+
+    @Test
+    void rejectsWhenClassSessionIsFull() {
+        ClassSession classSession = classSession(
+                DEFAULT_START_AT,
+                NOW.minusDays(1),
+                4,
+                4,
+                ClassSessionStatus.SCHEDULED
+        );
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        )).willReturn(false);
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.RESERVED,
+                LocalDateTime.of(2026, 8, 17, 0, 0),
+                LocalDateTime.of(2026, 8, 24, 0, 0)
+        )).willReturn(0L);
+
+        assertError(ErrorCode.CLASS_SESSION_FULL);
+    }
+
+    @Test
+    void allowsWhenOneSeatRemains() {
+        ClassSession classSession = classSession(
+                DEFAULT_START_AT,
+                NOW.minusDays(1),
+                4,
+                3,
+                ClassSessionStatus.SCHEDULED
+        );
+        prepareSuccessfulReservation(classSession, 0);
+
+        reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
+
+        assertThat(classSession.getReservedCount()).isEqualTo(4);
+    }
+
+    @Test
+    void rejectsWhenAuthenticatedMemberNoLongerExists() {
+        ClassSession classSession = defaultClassSession();
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertError(ErrorCode.UNAUTHORIZED);
+        verify(reservationRepository, never()).existsByMemberIdAndClassSessionIdAndStatus(
+                any(),
+                any(),
+                any()
+        );
+        verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
+                any(),
+                any(),
+                any(),
+                any()
+        );
+        verify(reservationRepository, never()).save(any());
+    }
+
+    private void prepareSuccessfulReservation(ClassSession classSession, long weeklyCount) {
+        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        )).willReturn(false);
+        LocalDateTime weekStart = classSession.getStartAt().toLocalDate()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .atStartOfDay();
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.RESERVED,
+                weekStart,
+                weekStart.plusWeeks(1)
+        )).willReturn(weeklyCount);
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(reservationRepository.save(any(Reservation.class))).willAnswer(invocation -> {
+            Reservation reservation = invocation.getArgument(0);
+            ReflectionTestUtils.setField(reservation, "id", 55L);
+            return reservation;
+        });
+    }
+
+    private ClassSession defaultClassSession() {
+        return classSession(
+                DEFAULT_START_AT,
+                NOW.minusDays(1),
+                4,
+                0,
+                ClassSessionStatus.SCHEDULED
+        );
+    }
+
+    private ClassSession classSession(
+            LocalDateTime startAt,
+            LocalDateTime reservationOpenAt,
+            int capacity,
+            int reservedCount,
+            ClassSessionStatus status
+    ) {
+        ClassSession classSession = new ClassSession(
+                new Instructor("김필라", null),
+                ClassType.REFORMER,
+                startAt,
+                50,
+                reservationOpenAt,
+                capacity,
+                status
+        );
+        ReflectionTestUtils.setField(classSession, "id", CLASS_SESSION_ID);
+        ReflectionTestUtils.setField(classSession, "reservedCount", reservedCount);
+        return classSession;
+    }
+
+    private void assertError(ErrorCode errorCode) {
+        assertThatThrownBy(() -> reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(errorCode);
+    }
+}

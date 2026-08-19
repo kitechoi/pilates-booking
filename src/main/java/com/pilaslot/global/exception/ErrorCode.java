@@ -15,6 +15,12 @@ public enum ErrorCode {
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 토큰입니다."),
     EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "인증 토큰이 만료되었습니다."),
     CLASS_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "수업을 찾을 수 없습니다."),
+    CLASS_SESSION_CANCELLED(HttpStatus.CONFLICT, "취소된 수업은 예약할 수 없습니다."),
+    RESERVATION_NOT_OPEN(HttpStatus.CONFLICT, "아직 예약할 수 없는 수업입니다."),
+    RESERVATION_CLOSED(HttpStatus.CONFLICT, "예약이 마감된 수업입니다."),
+    DUPLICATE_RESERVATION(HttpStatus.CONFLICT, "이미 예약한 수업입니다."),
+    WEEKLY_RESERVATION_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "주간 예약 가능 횟수를 초과했습니다."),
+    CLASS_SESSION_FULL(HttpStatus.CONFLICT, "수업 정원이 마감되었습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 HTTP 메서드입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
