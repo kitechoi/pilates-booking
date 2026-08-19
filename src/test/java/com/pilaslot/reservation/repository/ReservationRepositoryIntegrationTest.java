@@ -88,6 +88,28 @@ class ReservationRepositoryIntegrationTest {
     }
 
     @Test
+    void findsReservationOnlyForItsOwner() {
+        Member owner = saveMember("lookup-owner");
+        Member otherMember = saveMember("lookup-other");
+        Instructor instructor = instructorRepository.save(new Instructor("이필라", null));
+        Reservation reservation = saveReservation(
+                owner,
+                saveClassSession(instructor, WEEK_START.plusDays(1))
+        );
+        reservationRepository.flush();
+        entityManager.clear();
+
+        assertThat(reservationRepository.findByIdAndMemberId(
+                reservation.getId(),
+                owner.getId()
+        )).isPresent();
+        assertThat(reservationRepository.findByIdAndMemberId(
+                reservation.getId(),
+                otherMember.getId()
+        )).isEmpty();
+    }
+
+    @Test
     void countsOnlyMembersCancelledReservationsInsideClassSessionWeek() {
         Member targetMember = saveMember("cancel-target");
         Member otherMember = saveMember("cancel-other");

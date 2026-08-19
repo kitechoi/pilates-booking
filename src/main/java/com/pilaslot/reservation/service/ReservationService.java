@@ -59,9 +59,9 @@ public class ReservationService {
 
     @Transactional
     public void cancel(Long memberId, Long reservationId) {
-        Reservation reservation = reservationRepository.findById(reservationId)
+        Reservation reservation = reservationRepository
+                .findByIdAndMemberId(reservationId, memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
-        validateOwner(reservation, memberId);
         validateReservationStatus(reservation);
 
         LocalDateTime now = LocalDateTime.now(clock);
@@ -119,12 +119,6 @@ public class ReservationService {
     private void validateCapacity(ClassSession classSession) {
         if (classSession.getReservedCount() >= classSession.getCapacity()) {
             throw new BusinessException(ErrorCode.CLASS_SESSION_FULL);
-        }
-    }
-
-    private void validateOwner(Reservation reservation, Long memberId) {
-        if (!reservation.getMember().getId().equals(memberId)) {
-            throw new BusinessException(ErrorCode.RESERVATION_ACCESS_DENIED);
         }
     }
 

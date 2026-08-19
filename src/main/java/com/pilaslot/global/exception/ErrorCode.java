@@ -22,7 +22,6 @@ public enum ErrorCode {
     WEEKLY_RESERVATION_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "주간 예약 가능 횟수를 초과했습니다."),
     CLASS_SESSION_FULL(HttpStatus.CONFLICT, "수업 정원이 마감되었습니다."),
     RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."),
-    RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 예약을 취소할 권한이 없습니다."),
     RESERVATION_ALREADY_CANCELLED(HttpStatus.CONFLICT, "이미 취소된 예약입니다."),
     CANCELLATION_CLOSED(HttpStatus.CONFLICT, "취소 가능 시간이 지났습니다."),
     WEEKLY_CANCELLATION_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "주간 취소 가능 횟수를 초과했습니다."),

@@ -40,7 +40,6 @@ import static org.mockito.Mockito.verify;
 class ReservationServiceTest {
 
     private static final Long MEMBER_ID = 1L;
-    private static final Long OTHER_MEMBER_ID = 2L;
     private static final Long CLASS_SESSION_ID = 10L;
     private static final Long RESERVATION_ID = 55L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 19, 13, 0);
@@ -329,24 +328,18 @@ class ReservationServiceTest {
 
     @Test
     void rejectsUnknownReservation() {
-        given(reservationRepository.findById(RESERVATION_ID)).willReturn(Optional.empty());
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.empty());
 
         assertCancelError(ErrorCode.RESERVATION_NOT_FOUND);
     }
 
     @Test
-    void rejectsReservationOwnedByAnotherMember() {
-        Member otherMember = new Member("5678", "encoded-password", "김회원", "010-9999-9999");
-        ReflectionTestUtils.setField(otherMember, "id", OTHER_MEMBER_ID);
-        Reservation reservation = reservation(
-                otherMember,
-                cancellableClassSession(DEFAULT_START_AT),
-                NOW.minusDays(1)
-        );
-        reservation.cancel(NOW.minusHours(1));
-        given(reservationRepository.findById(RESERVATION_ID)).willReturn(Optional.of(reservation));
+    void rejectsReservationOwnedByAnotherMemberAsNotFound() {
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.empty());
 
-        assertCancelError(ErrorCode.RESERVATION_ACCESS_DENIED);
+        assertCancelError(ErrorCode.RESERVATION_NOT_FOUND);
         verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
                 any(),
                 any(),
@@ -363,7 +356,8 @@ class ReservationServiceTest {
                 NOW.minusDays(1)
         );
         reservation.cancel(NOW.minusHours(1));
-        given(reservationRepository.findById(RESERVATION_ID)).willReturn(Optional.of(reservation));
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(reservation));
 
         assertCancelError(ErrorCode.RESERVATION_ALREADY_CANCELLED);
         verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
@@ -378,7 +372,8 @@ class ReservationServiceTest {
     void rejectsAfterCancellationDeadline() {
         ClassSession classSession = cancellableClassSession(NOW.plusHours(8).minusNanos(1));
         Reservation reservation = reservation(member, classSession, NOW.minusDays(1));
-        given(reservationRepository.findById(RESERVATION_ID)).willReturn(Optional.of(reservation));
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(reservation));
 
         assertCancelError(ErrorCode.CANCELLATION_CLOSED);
         verify(reservationRepository, never()).countByMemberAndStatusInClassSessionWeek(
@@ -476,7 +471,8 @@ class ReservationServiceTest {
     }
 
     private void prepareSuccessfulCancellation(Reservation reservation, long weeklyCount) {
-        given(reservationRepository.findById(RESERVATION_ID)).willReturn(Optional.of(reservation));
+        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(reservation));
         LocalDateTime weekStart = reservation.getClassSession().getStartAt().toLocalDate()
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                 .atStartOfDay();
