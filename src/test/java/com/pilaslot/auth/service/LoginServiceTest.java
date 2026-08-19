@@ -20,7 +20,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +43,7 @@ class LoginServiceTest {
 
     @BeforeEach
     void setUp() {
-        passwordEncoder = new BCryptPasswordEncoder();
+        passwordEncoder = spy(new BCryptPasswordEncoder());
         loginService = new LoginService(memberRepository, passwordEncoder, jwtTokenProvider);
     }
 
@@ -69,16 +72,22 @@ class LoginServiceTest {
         assertInvalidCredentials(() -> loginService.login(
                 new LoginRequest(MEMBER_NUMBER, RAW_PASSWORD)
         ));
+        verify(passwordEncoder).matches(
+                eq(RAW_PASSWORD),
+                argThat(this::isValidBcryptHash)
+        );
     }
 
     @Test
     void hidesWhetherPasswordDoesNotMatch() {
+        Member member = memberWithEncodedPassword();
         given(memberRepository.findByMemberNumber(MEMBER_NUMBER))
-                .willReturn(Optional.of(memberWithEncodedPassword()));
+                .willReturn(Optional.of(member));
 
         assertInvalidCredentials(() -> loginService.login(
                 new LoginRequest(MEMBER_NUMBER, "wrong-password")
         ));
+        verify(passwordEncoder).matches("wrong-password", member.getPassword());
     }
 
     private Member memberWithEncodedPassword() {
@@ -97,5 +106,10 @@ class LoginServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_LOGIN_CREDENTIALS);
+    }
+
+    private boolean isValidBcryptHash(String encodedPassword) {
+        return encodedPassword != null
+                && encodedPassword.matches("^\\$2[ayb]\\$10\\$.{53}$");
     }
 }

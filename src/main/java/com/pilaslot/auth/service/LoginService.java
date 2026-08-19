@@ -16,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LoginService {
 
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2y$10$lBUjcpBVUpsslW8msLuDM.VWgCJyZs8loEqHye/vwXxmAZJzReaMG";
+
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -23,9 +26,16 @@ public class LoginService {
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
         Member member = memberRepository.findByMemberNumber(request.memberNumber())
-                .orElseThrow(LoginService::invalidCredentials);
+                .orElse(null);
+        String encodedPassword = member != null
+                ? member.getPassword()
+                : DUMMY_PASSWORD_HASH;
+        boolean passwordMatches = passwordEncoder.matches(
+                request.password(),
+                encodedPassword
+        );
 
-        if (!passwordEncoder.matches(request.password(), member.getPassword())) {
+        if (member == null || !passwordMatches) {
             throw invalidCredentials();
         }
 
