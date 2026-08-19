@@ -321,21 +321,6 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
 
-    @Test
-    void noLongerMapsNestedClassSessionReservationEndpoint() throws Exception {
-        mockMvc.perform(post("/api/v1/class-sessions/10/reservations")
-                        .header("Authorization", "Bearer valid-token"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void noLongerMapsMemberMeReservationsEndpoint() throws Exception {
-        mockMvc.perform(get("/api/v1/members/me/reservations")
-                        .header("Authorization", "Bearer valid-token")
-                        .param("weekStart", WEEK_START.toString()))
-                .andExpect(status().isNotFound());
-    }
-
     private MyReservationListResponse myReservationsResponse() {
         MyReservationResponse.InstructorResponse instructor =
                 new MyReservationResponse.InstructorResponse(

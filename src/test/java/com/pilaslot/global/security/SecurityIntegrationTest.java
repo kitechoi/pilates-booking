@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -99,6 +100,25 @@ class SecurityIntegrationTest {
         mockMvc.perform(get("/api/v1/class-sessions")
                         .param("weekStart", "2026-08-17"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void noLongerMapsNestedClassSessionReservationEndpoint() throws Exception {
+        String token = jwtTokenProvider.createAccessToken(42L);
+
+        mockMvc.perform(post("/api/v1/class-sessions/10/reservations")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void noLongerMapsMemberMeReservationsEndpoint() throws Exception {
+        String token = jwtTokenProvider.createAccessToken(42L);
+
+        mockMvc.perform(get("/api/v1/members/me/reservations")
+                        .header("Authorization", "Bearer " + token)
+                        .param("weekStart", "2026-08-17"))
+                .andExpect(status().isNotFound());
     }
 
     @TestConfiguration(proxyBeanMethods = false)
