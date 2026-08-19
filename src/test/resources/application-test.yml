@@ -5,3 +5,8 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+
+app:
+  jwt:
+    secret: pilaslot-test-jwt-secret-key-2026-integration
+    expiration: 1h

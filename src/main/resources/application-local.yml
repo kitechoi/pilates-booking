@@ -13,3 +13,8 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+
+app:
+  jwt:
+    secret: ${PILASLOT_JWT_SECRET:pilaslot-local-jwt-secret-key-2026-development}
+    expiration: 1h
