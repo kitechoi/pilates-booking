@@ -94,7 +94,7 @@ class ReservationServiceTest {
                 reservationRepository,
                 memberRepository
         );
-        inOrder.verify(classSessionRepository).findById(CLASS_SESSION_ID);
+        inOrder.verify(classSessionRepository).findByIdForUpdate(CLASS_SESSION_ID);
         inOrder.verify(memberRepository).findById(MEMBER_ID);
         inOrder.verify(reservationRepository).existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
@@ -112,14 +112,14 @@ class ReservationServiceTest {
 
     @Test
     void rejectsUnknownClassSession() {
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.empty());
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.empty());
 
         assertError(ErrorCode.CLASS_SESSION_NOT_FOUND);
     }
 
     @Test
     void rejectsCancelledClassSession() {
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
                 DEFAULT_START_AT,
                 NOW.minusDays(1),
                 4,
@@ -132,7 +132,7 @@ class ReservationServiceTest {
 
     @Test
     void rejectsBeforeReservationOpenTime() {
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
                 DEFAULT_START_AT,
                 NOW.plusNanos(1),
                 4,
@@ -161,7 +161,7 @@ class ReservationServiceTest {
 
     @Test
     void rejectsAfterReservationDeadline() {
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession(
                 NOW.plusHours(2).minusNanos(1),
                 NOW.minusDays(1),
                 4,
@@ -191,7 +191,7 @@ class ReservationServiceTest {
     @Test
     void rejectsDuplicateActiveReservation() {
         ClassSession classSession = defaultClassSession();
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
@@ -220,7 +220,7 @@ class ReservationServiceTest {
     @Test
     void rejectsWhenWeeklyActiveReservationCountIsFourteen() {
         ClassSession classSession = defaultClassSession();
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
@@ -256,7 +256,7 @@ class ReservationServiceTest {
                 4,
                 ClassSessionStatus.SCHEDULED
         );
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
@@ -292,7 +292,7 @@ class ReservationServiceTest {
     @Test
     void rejectsWhenAuthenticatedMemberNoLongerExists() {
         ClassSession classSession = defaultClassSession();
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 
         assertError(ErrorCode.UNAUTHORIZED);
@@ -447,7 +447,7 @@ class ReservationServiceTest {
     }
 
     private void prepareSuccessfulReservation(ClassSession classSession, long weeklyCount) {
-        given(classSessionRepository.findById(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,

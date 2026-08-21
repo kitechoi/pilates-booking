@@ -3,6 +3,9 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
   flyway:
     enabled: true
 
@@ -10,3 +13,8 @@ app:
   jwt:
     secret: pilaslot-test-jwt-secret-key-2026-integration
     expiration: 1h
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
