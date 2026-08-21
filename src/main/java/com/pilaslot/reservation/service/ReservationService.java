@@ -33,7 +33,7 @@ public class ReservationService {
 
     @Transactional
     public ReservationCreateResponse reserve(Long memberId, Long classSessionId) {
-        ClassSession classSession = classSessionRepository.findById(classSessionId)
+        ClassSession classSession = classSessionRepository.findByIdForUpdate(classSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CLASS_SESSION_NOT_FOUND));
         validateClassSessionStatus(classSession);
 
